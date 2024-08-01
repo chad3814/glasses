@@ -1,0 +1,19 @@
+.episode {
+    margin: 5px;
+    border: 1px solid black;
+}
+
+.title {
+    font-size: larger;
+    font-weight: bold;
+}
+
+.posted {
+    font-size: smaller;
+    font-weight: lighter;
+    color: #555;
+}
+
+.description p {
+    margin-bottom: 0.5em;
+}

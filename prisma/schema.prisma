@@ -1,0 +1,67 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Episode {
+  id          String   @id
+  title       String
+  posted      DateTime @default(now())
+  slug        String
+  description String
+  books       Book[]
+
+  @@index([posted])
+}
+
+enum Format {
+  hardcover
+  paperback
+  audio
+  ebook
+}
+
+model Book {
+  id           Int       @id @default(autoincrement())
+  isbn         String
+  format       Format
+  imageUrl     String?
+  bookshopUrl  String?
+  overdriveUrl String?
+  libroFmUrl   String?
+  work         Work      @relation(fields: [workId], references: [id])
+  workId       Int
+  episodes     Episode[]
+}
+
+model Work {
+  id          Int     @id @default(autoincrement())
+  title       String
+  author      Author  @relation(fields: [authorId], references: [id])
+  authorId    Int
+  description String?
+  books       Book[]
+
+  @@index([title])
+}
+
+model Author {
+  id    Int    @id @default(autoincrement())
+  name  String
+  works Work[]
+}
+
+model Metadata {
+  id            Int      @id @default(autoincrement())
+  lastFeedFetch DateTime @default(now())
+}

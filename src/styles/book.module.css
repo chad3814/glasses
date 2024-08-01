@@ -1,0 +1,19 @@
+.book {
+    text-align: center;
+    margin: 0 auto;
+    display: inline-block;
+}
+
+.frame {
+    border: 1px solid #e1e1e3;
+    background-color: #FFF;
+}
+
+.small {
+    font-size: smaller;
+}
+
+.loading {
+    background-color: beige;
+    border: 1px dashed black;
+}
