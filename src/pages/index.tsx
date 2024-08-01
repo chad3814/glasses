@@ -1,36 +1,34 @@
-import { EpisodeData } from "@/types/episodeData";
 import Head from "next/head";
-import { useEffect, useState } from "react";
+import styles from "@/styles/top100.module.css";
+import books from "./books.json";
+import RankedRow from "@/components/rankedRow";
 
-import styles from '@/styles/index.module.css';
-import Episode from "@/components/episode";
+type BookData = {
+  isbn: number;
+  title: string;
+  author: string;
+  rank: number;
+  votes: number;
+};
 
 export default function Home() {
-  const [episodes, setEpisodes] = useState<EpisodeData[]>([]);
-
-  useEffect(
-    () => {
-      (async() => {
-        const res = await fetch('/api/getEpisodes');
-        setEpisodes(await res.json());
-      })();
-      return () => setEpisodes([]);
-    },
-    [setEpisodes],
-  )
-
+  const rows = [];
+  for(let i = 99; i >= 0; i--) {
+    rows.push(
+      <RankedRow key={`row${i/2}`} books={[books[i]]} />
+    );
+  }
   return (
     <>
       <Head>
-        <title>Reading Glasses Recommended Books</title>
-        <meta name="description" content="All the books recommended from the podcast Reading Glasses" />
+        <title>Glasser Top 100 Books of the Century (So Far)</title>
+        <meta name="description" content="The top 100 books as voted on by Reading Glasses listeners" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/rg-logo.png" />
       </Head>
       <main className={styles.main}>
-        {episodes.map(
-          episode => <Episode key={episode.id} episodeData={episode}/>
-        )}
+        <h1 className={styles.h1}>Glasser Top 100 Books of the Century (So Far)</h1>
+        {rows}
       </main>
     </>
   );
