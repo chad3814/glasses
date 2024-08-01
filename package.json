@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.17.0",
-    "fast-xml-parser": "^4.4.0",
+    "fast-xml-parser": "^4.4.1",
     "next": "14.2.5",
     "prisma": "^5.17.0",
     "react": "^18",
