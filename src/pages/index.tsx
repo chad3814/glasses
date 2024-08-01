@@ -25,7 +25,7 @@ export default function Home() {
         <title>Reading Glasses Recommended Books</title>
         <meta name="description" content="All the books recommended from the podcast Reading Glasses" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/rg-logo.png" />
       </Head>
       <main className={styles.main}>
         {episodes.map(
