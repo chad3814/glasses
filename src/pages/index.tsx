@@ -29,7 +29,7 @@ export default function Home() {
       </Head>
       <main className={styles.main}>
         {episodes.map(
-          episode => <Episode episodeData={episode}/>
+          episode => <Episode key={episode.id} episodeData={episode}/>
         )}
       </main>
     </>
