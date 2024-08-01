@@ -23,7 +23,7 @@ export default function RankedBook({
                 src={`https://images-us.bookshop.org/ingram/${isbn}.jpg?height=250&v=v2.jpg`}
                 loading="lazy"
                 alt={`${title} by ${author}`}
-                height={125}
+                height={250}
             />
             <div className={styles.text}>
                 <div className={styles.title}>{title}</div>

@@ -9,7 +9,7 @@
 
 .book {
     display: flex;
-    height: 127px;
+    height: 252px;
     flex-direction: row;
     flex-wrap: nowrap;
     border: 1px solid black;
@@ -44,7 +44,7 @@
     gap: 0;
     align-self: center;
     width: 35%;
-    height: 127px;
+    height: 252px;
 }
 
 .links {
