@@ -12,3 +12,15 @@
   color: white;
   font-size: 4em;
 }
+
+.challenge {
+  font-size: larger;
+  color: white;
+  font-weight: 600;
+  margin-bottom: 2em;
+}
+
+.challenge a {
+  font-weight: 800;
+  color: blanchedalmond;
+}

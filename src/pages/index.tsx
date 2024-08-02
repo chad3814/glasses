@@ -30,6 +30,11 @@ export default function Home() {
       <main className={styles.main}>
         <h1 className={styles.h1}>Glasser Top 100 Books of the Century (So Far)</h1>
         {rows}
+        <span className={styles.challenge}>
+          Glasser Jay created this&nbsp;
+          <a href="https://app.thestorygraph.com/reading_challenges/04b5ddbd-c658-44c7-873c-b0f4d7566999?redirect=true" title="A StoryGraph challenge" target="_blank">StoryGraph Challenge</a>
+          &nbsp;to go along with the list!
+        </span>
       </main>
     </>
   );
