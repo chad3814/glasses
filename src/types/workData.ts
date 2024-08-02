@@ -2,16 +2,20 @@ import { Work } from "@prisma/client";
 import { AuthorData, authorToAuthorData } from "./authorData";
 import db from "@/models/db";
 
-export type WorkData = Omit<Work, 'authorId'> & {
-    author: AuthorData;
+export type WorkData = Work & {
+    authors: AuthorData[];
     bookIds: number[];
 };
 
 export async function workToWorkData(work: Work, $tx = db): Promise<WorkData> {
-    const [author, books] = await Promise.all([
-        $tx.author.findFirst({
+    const [authors, books] = await Promise.all([
+        $tx.author.findMany({
             where: {
-                id: work.authorId,
+                works: {
+                    some: {
+                        id: work.id,
+                    },
+                },
             },
         }),
         $tx.book.findMany({
@@ -24,15 +28,15 @@ export async function workToWorkData(work: Work, $tx = db): Promise<WorkData> {
         }),
     ]);
 
-    if (!author) {
-        throw new Error('no author for work');
+    if (!authors || authors.length === 0) {
+        throw new Error('no authors for work');
     }
 
     const ret = Object.assign(
         {},
         work,
         {
-            author: await authorToAuthorData(author, $tx),
+            authors: await Promise.all(authors.map(author => authorToAuthorData(author, $tx))),
             bookIds: books.map(book => book.id),
         },
     );

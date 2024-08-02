@@ -33,8 +33,8 @@ enum Format {
 
 model Book {
   id            Int     @id @default(autoincrement())
-  isbn          Int
-  format        Format
+  isbn          BigInt
+  format        Format?
   imageUrl      String?
   bookshopUrl   String?
   overdriveUrl  String?
@@ -52,8 +52,7 @@ model Book {
 model Work {
   id            Int       @id @default(autoincrement())
   title         String
-  author        Author    @relation(fields: [authorId], references: [id])
-  authorId      Int
+  authors       Author[]
   description   String?
   openLibraryId String?
   wikidataId    String?
@@ -61,7 +60,6 @@ model Work {
   episodes      Episode[]
 
   @@index([title])
-  @@unique([title, authorId])
 }
 
 model Author {

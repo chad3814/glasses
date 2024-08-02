@@ -208,8 +208,8 @@ async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promi
             console.error('no isbn match for', bookTag['@'].href);
             continue;
         }
-        const author = await getOrCreateAuthor($tx, matches.groups!.author);
-        const work = await getOrCreateWork($tx, matches.groups!.title, author);
+        const authors = await getOrCreateAuthors($tx, matches.groups!.author);
+        const work = await getOrCreateWork($tx, matches.groups!.title, authors);
         await getOrCreateBook($tx, work, parseInt(isbnMatch.groups!.isbn, 10));
         await $tx.episode.update({
             data: {
@@ -226,30 +226,41 @@ async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promi
     }
 }
 
-async function getOrCreateAuthor($tx: Client, name: string) {
-    let author = await $tx.author.findFirst({
-        where: {
-            name,
-        },
-    });
+async function getOrCreateAuthors($tx: Client, name: string) {
+    const names = name.split(' & ');
+    const authors: Author[] = [];
+    for (const name of names) {
+        let author = await $tx.author.findFirst({
+            where: {
+                name,
+            },
+        });
 
-    if (author) {
-        return author;
+        if (!author) {
+            author = await $tx.author.create({
+                data: {
+                    name,
+                },
+            });
+        }
+
+        authors.push(author);
     }
 
-    author = await $tx.author.create({
-        data: {
-            name,
-        },
-    });
-    return author;
+    return authors;
 }
 
-async function getOrCreateWork($tx: Client, title: string, author: Author) {
+async function getOrCreateWork($tx: Client, title: string, authors: Author[]) {
     let work = await $tx.work.findFirst({
         where: {
             title,
-            authorId: author.id,
+            authors: {
+                some: {
+                    id: {
+                        in: authors.map(author => author.id),
+                    },
+                },
+            },
         },
     });
 
@@ -260,9 +271,23 @@ async function getOrCreateWork($tx: Client, title: string, author: Author) {
     work = await $tx.work.create({
         data: {
             title,
-            authorId: author.id,
         },
     });
+    for (const author of authors) {
+        await $tx.author.update({
+            data: {
+                works: {
+                    connect: {
+                        id: work.id,
+                    },
+                },
+            },
+            where: {
+                id: author.id,
+            },
+        });
+    }
+
     return work;
 }
 

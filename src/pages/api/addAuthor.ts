@@ -3,7 +3,7 @@ import db from '@/models/db';
 import { ErrorResponse } from '@/types/errorResponse';
 import { Author } from '@prisma/client';
 
-export default async function apiAddWork(req: NextApiRequest, res: NextApiResponse<number|ErrorResponse>) {
+export default async function apiAddAuthor(req: NextApiRequest, res: NextApiResponse<number|ErrorResponse>) {
     if (req.method !== 'POST') {
         res.status(404).json({error: 'bad method'});
         return;

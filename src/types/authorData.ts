@@ -13,7 +13,11 @@ export async function authorToAuthorData(author: Author, $tx = db): Promise<Auth
                 id: true,
             },
             where: {
-                authorId: author.id,
+                authors: {
+                    some: {
+                        id: author.id,
+                    },
+                },
             },
         }),
         $tx.alternateName.findMany({
