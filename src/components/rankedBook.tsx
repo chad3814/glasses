@@ -8,6 +8,7 @@ type Props = {
     author: string;
     rank: number;
     votes: number;
+    overdriveId?: string;
 }
 export default function RankedBook({
     isbn,
@@ -15,6 +16,7 @@ export default function RankedBook({
     author,
     rank,
     votes,
+    overdriveId,
 }: Props) {
     return <div className={styles.rankedBook}>
         <div className={styles.rank}>{rank}</div>
@@ -31,7 +33,7 @@ export default function RankedBook({
                 <div className={styles.votes}>{votes} votes</div>
                 <div className={styles.links}>
                     <a href={`https://bookshop.org/a/4926/${isbn}`} target="_blank" title="Buy a copy from Bookshop.org">Bookshop.org</a>
-                    <a href={``} target="_blank" title="Borrow a copy using Overdrive">Overdrive</a>
+                    {overdriveId ? <a href={`https://www.overdrive.com/media/${overdriveId}`} target="_blank" title="Borrow a copy using Overdrive">Overdrive</a> : null }
                 </div>
             </div>
         </div>

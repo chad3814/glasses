@@ -8,6 +8,7 @@ type Props = {
         author: string;
         rank: number;
         votes: number;
+        overdriveId?: string;
     }[];
 };
 
@@ -21,6 +22,7 @@ export default function RankedRow({ books }: Props) {
                 author={book.author}
                 rank={book.rank}
                 votes={book.votes}
+                overdriveId={book.overdriveId}
             />
     )}</div>
 }

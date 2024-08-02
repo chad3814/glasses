@@ -25,6 +25,7 @@
     "csv-parse": "^5.5.6",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
+    "node-html-parser": "^6.1.13",
     "typescript": "^5",
     "vercel": "^35.2.2"
   }
