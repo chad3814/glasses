@@ -9,6 +9,6 @@
   }
   @media (max-width: 1079px) {
     .row {
-      width: calc(100% - 10px);
+      width: calc(100% - 25px);
     }
   }
