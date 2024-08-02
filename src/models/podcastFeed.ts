@@ -210,12 +210,12 @@ async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promi
         }
         const author = await getOrCreateAuthor($tx, matches.groups!.author);
         const work = await getOrCreateWork($tx, matches.groups!.title, author);
-        const book = await getOrCreateBook($tx, work, isbnMatch.groups!.isbn);
+        await getOrCreateBook($tx, work, parseInt(isbnMatch.groups!.isbn, 10));
         await $tx.episode.update({
             data: {
-                books: {
+                works: {
                     connect: {
-                        id: book.id,
+                        id: work.id,
                     },
                 },
             },
@@ -266,7 +266,7 @@ async function getOrCreateWork($tx: Client, title: string, author: Author) {
     return work;
 }
 
-async function getOrCreateBook($tx: Client, work: Work, isbn: string, format = Format.hardcover) {
+async function getOrCreateBook($tx: Client, work: Work, isbn: number, format = Format.hardcover) {
     let book = await $tx.book.findFirst({
         where: {
             isbn,

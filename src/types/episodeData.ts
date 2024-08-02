@@ -1,14 +1,16 @@
 import { Episode } from "@prisma/client";
-import { BookData, bookToBookData } from "./bookData";
 import db from "@/models/db";
 
 export type EpisodeData = Omit<Episode, 'posted'> & {
     posted: number;
-    books: BookData[];
+    workIds: number[];
 };
 
 export async function episodeToEpisodeData(episode: Episode, $tx = db): Promise<EpisodeData> {
-    const books = await $tx.book.findMany({
+    const workIds = await $tx.work.findMany({
+        select: {
+            id: true,
+        },
         where: {
             episodes: {
                 some: {
@@ -23,7 +25,7 @@ export async function episodeToEpisodeData(episode: Episode, $tx = db): Promise<
         episode,
         {
             posted: episode.posted.getTime(),
-            books: await Promise.all(books.map(book => bookToBookData(book, $tx))),
+            workIds: workIds.map(work => work.id),
         },
     );
     return ret;

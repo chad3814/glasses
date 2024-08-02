@@ -13,6 +13,5 @@ export default function Episode({episodeData}: Props) {
     return <div className={styles.episode}>
         <div className={styles.title}><Link href={`https://maximumfun.org/episodes/reading-glasses/${episode.slug}/`}>{episode.title}</Link></div>
         <div className={styles.posted}>{episode.posted.toISOString()}</div>
-        { episodeData.books.map(book => <Book key={book.isbn} isbn={book.isbn} />)}
     </div>
 }

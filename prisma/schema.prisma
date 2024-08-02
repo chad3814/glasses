@@ -19,7 +19,7 @@ model Episode {
   posted      DateTime @default(now())
   slug        String
   description String
-  books       Book[]
+  works       Work[]
 
   @@index([posted])
 }
@@ -32,33 +32,55 @@ enum Format {
 }
 
 model Book {
-  id           Int       @id @default(autoincrement())
-  isbn         String
-  format       Format
-  imageUrl     String?
-  bookshopUrl  String?
-  overdriveUrl String?
-  libroFmUrl   String?
-  work         Work      @relation(fields: [workId], references: [id])
-  workId       Int
-  episodes     Episode[]
+  id            Int     @id @default(autoincrement())
+  isbn          Int
+  format        Format
+  imageUrl      String?
+  bookshopUrl   String?
+  overdriveUrl  String?
+  libroFmUrl    String?
+  goodReadsUrl  String?
+  storyGraphUrl String?
+  openLibraryId String?
+  work          Work    @relation(fields: [workId], references: [id])
+  workId        Int
+
+  @@index([isbn])
+  @@index([workId])
 }
 
 model Work {
-  id          Int     @id @default(autoincrement())
-  title       String
-  author      Author  @relation(fields: [authorId], references: [id])
-  authorId    Int
-  description String?
-  books       Book[]
+  id            Int       @id @default(autoincrement())
+  title         String
+  author        Author    @relation(fields: [authorId], references: [id])
+  authorId      Int
+  description   String?
+  openLibraryId String?
+  wikidataId    String?
+  books         Book[]
+  episodes      Episode[]
 
   @@index([title])
+  @@unique([title, authorId])
 }
 
 model Author {
-  id    Int    @id @default(autoincrement())
-  name  String
-  works Work[]
+  id             Int             @id @default(autoincrement())
+  name           String
+  sortName       String?
+  alternateNames AlternateName[]
+  works          Work[]
+
+  @@index([name])
+}
+
+model AlternateName {
+  id       Int    @id @default(autoincrement())
+  name     String
+  author   Author @relation(fields: [authorId], references: [id])
+  authorId Int
+
+  @@index([name])
 }
 
 model Metadata {

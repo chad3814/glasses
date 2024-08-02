@@ -1,6 +1,5 @@
 import { Work } from "@prisma/client";
 import { AuthorData, authorToAuthorData } from "./authorData";
-import { BookData, bookToBookData } from "./bookData";
 import db from "@/models/db";
 
 export type WorkData = Omit<Work, 'authorId'> & {

@@ -1,23 +1,37 @@
 import { Author } from "@prisma/client";
-import { WorkData, workToWorkData } from "./workData";
 import db from "@/models/db";
 
 export type AuthorData = Author & {
-    works: WorkData[];
+    workIds: number[];
+    alternateNames: string[];
 };
 
 export async function authorToAuthorData(author: Author, $tx = db): Promise<AuthorData> {
-    const works = await $tx.work.findMany({
-        where: {
-            authorId: author.id,
-        },
-    });
+    const [works, alternateNames] = await Promise.all([
+        $tx.work.findMany({
+            select: {
+                id: true,
+            },
+            where: {
+                authorId: author.id,
+            },
+        }),
+        $tx.alternateName.findMany({
+            select: {
+                name: true,
+            },
+            where: {
+                authorId: author.id,
+            },
+        }),
+    ]);
 
     const ret = Object.assign(
         {},
         author,
         {
-            works: await Promise.all(works.map(work => workToWorkData(work, $tx))),
+            workIds: works.map(work => work.id),
+            alternateNames: alternateNames.map(alternateName => alternateName.name),
         },
     );
     return ret;
