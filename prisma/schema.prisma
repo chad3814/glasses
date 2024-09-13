@@ -35,6 +35,8 @@ model Book {
   id           Int       @id @default(autoincrement())
   isbn         String
   format       Format
+  releaseDate  DateTime?
+  pages        Int?
   imageUrl     String?
   bookshopUrl  String?
   overdriveUrl String?
@@ -56,12 +58,14 @@ model Work {
 }
 
 model Author {
-  id    Int    @id @default(autoincrement())
-  name  String
-  works Work[]
+  id          Int     @id @default(autoincrement())
+  name        String
+  bookshopUrl String?
+  works       Work[]
 }
 
-model Metadata {
-  id            Int      @id @default(autoincrement())
-  lastFeedFetch DateTime @default(now())
+model ScrapeLog {
+  url       String   @id
+  lastFetch DateTime @default(now())
+  etag      String?
 }

@@ -1,19 +1,22 @@
-import { Author, Episode, Format, Work } from '@prisma/client';
+import { Episode } from '@prisma/client';
 import { XMLParser } from 'fast-xml-parser';
 import db, { Client } from './db';
+import { getOrCreateAuthor, getOrCreateBook, getOrCreateWork } from './book';
+
+const FEED_URL ='https://feeds.simplecast.com/SMcNunjG';
 
 export async function getEpisodes(offset = 0, limit = 100): Promise<Episode[]> {
     return await db.$transaction(async ($tx) => {
-        const res = await $tx.metadata.findFirst({
-            orderBy: {
-                id: 'desc'
+        const res = await $tx.scrapeLog.findFirst({
+            where: {
+                url: FEED_URL,
             }
         });
 
         const sixDaysAgo = new Date();
         sixDaysAgo.setUTCDate(sixDaysAgo.getUTCDate() - 6);
 
-        if (!res || res.lastFeedFetch < sixDaysAgo) {
+        if (!res || res.lastFetch < sixDaysAgo) {
             // never fetched || maybe out of date
             await fetchFeed($tx);
         }
@@ -116,7 +119,7 @@ type ReadingGlassesFeed = {
 };
 
 async function fetchFeed($tx: Client) {
-    const res = await fetch('https://feeds.simplecast.com/SMcNunjG');
+    const res = await fetch(FEED_URL);
 
     if (!res.ok) {
         console.error('failed to fetch feed', res.status, res.statusText);
@@ -135,9 +138,16 @@ async function fetchFeed($tx: Client) {
     });
     const feed = parser.parse(xml) as ReadingGlassesFeed;
 
-    await $tx.metadata.create({
-        data: {
-            lastFeedFetch: new Date(),
+    await $tx.scrapeLog.upsert({
+        create: {
+            url: FEED_URL,
+            lastFetch: new Date(),
+        },
+        where: {
+            url: FEED_URL,
+        },
+        update: {
+            lastFetch: new Date(),
         }
     });
 
@@ -224,65 +234,4 @@ async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promi
             },
         });
     }
-}
-
-async function getOrCreateAuthor($tx: Client, name: string) {
-    let author = await $tx.author.findFirst({
-        where: {
-            name,
-        },
-    });
-
-    if (author) {
-        return author;
-    }
-
-    author = await $tx.author.create({
-        data: {
-            name,
-        },
-    });
-    return author;
-}
-
-async function getOrCreateWork($tx: Client, title: string, author: Author) {
-    let work = await $tx.work.findFirst({
-        where: {
-            title,
-            authorId: author.id,
-        },
-    });
-
-    if (work) {
-        return work;
-    }
-
-    work = await $tx.work.create({
-        data: {
-            title,
-            authorId: author.id,
-        },
-    });
-    return work;
-}
-
-async function getOrCreateBook($tx: Client, work: Work, isbn: string, format = Format.hardcover) {
-    let book = await $tx.book.findFirst({
-        where: {
-            isbn,
-        },
-    });
-
-    if (book) {
-        return book;
-    }
-
-    book = await $tx.book.create({
-        data: {
-            isbn,
-            workId: work.id,
-            format,
-        },
-    });
-    return book;
 }
