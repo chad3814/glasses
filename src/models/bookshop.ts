@@ -1,9 +1,12 @@
 import { XMLParser } from 'fast-xml-parser';
+import { JSDOM } from 'jsdom';
 import { gunzip as gz} from 'node:zlib';
 import { promisify } from 'node:util';
 import db from './db';
 import { take } from '../utils/take';
 import { sleep } from '../utils/sleep';
+import { Book, Format } from '@prisma/client';
+import { getOrCreateBook } from './book';
 const gunzip = promisify(gz);
 
 const SITEMAP_URL = 'https://bookshop.org/sitemap.xml.gz';
@@ -42,19 +45,84 @@ function parseLoc(loc: Loc): UrlMod {
     }
 }
 
+export async function parseBookshopBookHtml(html: string): Promise<Book | null> {
+    let frag: ReturnType<typeof JSDOM.fragment>;
+    try {
+        frag = JSDOM.fragment(html);
+    } catch (err) {
+        console.error('jsdom error', err);
+        return null;
+    }
+    const typeNode = frag.querySelector('meta[property="og:type"]');
+    if (!typeNode || typeNode.getAttribute('content') !== 'book') {
+        console.error('not a book');
+        return null;
+    }
+    const isbn = frag.querySelector('meta[property="book:isbn"]')?.getAttribute('content');
+    if (!isbn) {
+        console.error('no isbn');
+        return null;
+    }
+    const titleNode = frag.querySelector('meta[property="og:title"]');
+    let title = '';
+    let authorName = '';
+    if (titleNode && titleNode.hasAttribute('content')) {
+        const titleAuthor = titleNode.getAttribute('content')!;
+        // console.log(titleAuthor);
+        [title, authorName] = titleAuthor.split(' a book by ');
+    }
+    const releaseDate = new Date(frag.querySelector('meta[property="book:release_date"]')?.getAttribute('content') ?? 0);
+    const description = frag.querySelector('meta[property="og:description"]')?.getAttribute('content') ?? undefined;
+    const authorBsUrl = frag.querySelector('meta[property="book:author"]')?.getAttribute('content') ?? undefined;
+    const imageUrl = frag.querySelector('meta[property="og:image"]')?.getAttribute('content') ?? undefined;
+    const format = frag.querySelector('div[itemprop="bookFormat"]')?.textContent;
+    const pages = Number(frag.querySelector('div[itemprop="numberOfPages"]')?.textContent ?? -1);
+    let f: Format = Format.hardcover;
+    switch (format) {
+        default:
+        case 'Hardcover':
+            f = Format.hardcover;
+            break;
+        case 'Trade Paperback':
+        case 'Paperback':
+            f = Format.paperback;
+            break;
+        case 'Compact Disc':
+            f = Format.audio;
+            break;
+    }
+
+    const book = await getOrCreateBook(
+        db,
+        isbn,
+        authorName,
+        title,
+        description,
+        imageUrl,
+        authorBsUrl,
+        pages,
+        f,
+        releaseDate,
+    );
+
+    return book;
+}
+
 export const BOOKSHOP_UA = 'ReadingGlassesDb/1.0 (Chad Walker chad@cwalker.dev)';
 
 // cloud flare rate limiting
 export const CLOUDFLARE_RE = /history.replaceState\(null, null, "\\\/[^?]+\?(?<key>__cf[a-z_]+=[^"]+)"/u;
 
-async function getGzXml<T>(url: string, etag?: string): Promise<{dom: T, etag: string | null} | null> {
+export async function getBookshopResponse(url: string, etag?: string): Promise<Response | null> {
+    console.log('get bookshop:', url);
     let response: Response;
     const headers = new Headers();
     headers.set('User-Agent', BOOKSHOP_UA);
-    let responseEtag: string | null;
+
     if (etag) {
         headers.set('If-None-Match', etag);
     }
+
     try {
         response = await fetch(url, {
             headers,
@@ -62,7 +130,7 @@ async function getGzXml<T>(url: string, etag?: string): Promise<{dom: T, etag: s
     } catch (err) {
         console.error('fetch failed, sleeping');
         await sleep(2000);
-        return getGzXml(url);
+        return getBookshopResponse(url, etag);
     }
     if (!response.ok) {
         if (response.status === 403) {
@@ -73,16 +141,24 @@ async function getGzXml<T>(url: string, etag?: string): Promise<{dom: T, etag: s
                 const u = new URL(url);
                 const key = match.groups.key;
                 u.search = key;
-                console.error('key', key);
-                return getGzXml(u.href);
+                console.error('key', key, u.href);
+                return getBookshopResponse(u.href, etag);
             }
         } else if (response.status === 304) {
             return null;
         }
         console.error(url, response.status, response.statusText);
-        throw new Error('failed to get xml');
+        throw new Error('failed to get bookshop data');
     }
-    responseEtag = response.headers.get('etag');
+    return response;
+}
+
+async function getGzXml<T>(url: string, etag?: string): Promise<{dom: T, etag: string | null} | null> {
+    const response = await getBookshopResponse(url, etag);
+    if (!response) {
+        return null;
+    }
+    const responseEtag = response.headers.get('etag');
     const xml = await gunzip(await response.arrayBuffer());
     const parser = new XMLParser({
         ignoreAttributes: false,

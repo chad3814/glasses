@@ -1,64 +1,65 @@
-import { Author, Format, Work } from '@prisma/client';
+import { Author, Book, Format, Work } from '@prisma/client';
 import { Client } from './db';
 
-export async function getOrCreateAuthor($tx: Client, name: string, bsAuthorUrl?: string) {
-    let author = await $tx.author.findFirst({
-        where: {
-            name,
-            bookshopUrl: bsAuthorUrl
-        },
-    });
-
-    if (author) {
-        return author;
-    }
-
-    author = await $tx.author.create({
-        data: {
-            name,
-        },
-    });
-    return author;
-}
-
-export async function getOrCreateWork($tx: Client, title: string, author: Author) {
-    let work = await $tx.work.findFirst({
-        where: {
-            title,
-            authorId: author.id,
-        },
-    });
-
-    if (work) {
-        return work;
-    }
-
-    work = await $tx.work.create({
-        data: {
-            title,
-            authorId: author.id,
-        },
-    });
-    return work;
-}
-
-export async function getOrCreateBook($tx: Client, work: Work, isbn: string, format: Format = Format.hardcover) {
+export async function getOrCreateBook(
+    $tx: Client,
+    isbn: string,
+    authorName: string,
+    title: string,
+    description?: string,
+    imageUrl?: string,
+    bsAuthorUrl?: string,
+    pages?: number,
+    format: Format = Format.hardcover,
+    releaseDate?: Date
+) : Promise<Book | null> {
     let book = await $tx.book.findFirst({
         where: {
-            isbn,
-        },
+            isbn
+        }
     });
+    if (!book) {
+        let author = await $tx.author.findFirst({
+            where: {
+                name: authorName,
+            },
+        });
+        if (!author) {
+            author = await $tx.author.create({
+                data: {
+                    name: authorName,
+                    bookshopUrl: bsAuthorUrl,
+                },
+            });
+        }
 
-    if (book) {
-        return book;
+        const work = await $tx.work.upsert({
+            create: {
+                title,
+                authorId: author.id,
+                description,
+            },
+            update: {
+                description,
+            },
+            where: {
+                title_authorId: {
+                    title,
+                    authorId: author.id,
+                },
+            },
+        });
+
+        book = await $tx.book.create({
+            data: {
+                isbn,
+                workId: work.id,
+                format,
+                releaseDate,
+                pages,
+                imageUrl,
+            },
+        });
     }
-
-    book = await $tx.book.create({
-        data: {
-            isbn,
-            workId: work.id,
-            format,
-        },
-    });
     return book;
 }

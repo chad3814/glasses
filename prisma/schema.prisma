@@ -38,7 +38,6 @@ model Book {
   releaseDate  DateTime?
   pages        Int?
   imageUrl     String?
-  bookshopUrl  String?
   overdriveUrl String?
   libroFmUrl   String?
   work         Work      @relation(fields: [workId], references: [id])

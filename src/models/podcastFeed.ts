@@ -1,7 +1,9 @@
+import path from 'node:path';
 import { Episode } from '@prisma/client';
-import { XMLParser } from 'fast-xml-parser';
+import { JSDOM } from 'jsdom';
 import db, { Client } from './db';
-import { getOrCreateAuthor, getOrCreateBook, getOrCreateWork } from './book';
+import { XMLParser } from 'fast-xml-parser';
+import { getBookshopResponse, parseBookshopBookHtml } from './bookshop';
 
 const FEED_URL ='https://feeds.simplecast.com/SMcNunjG';
 
@@ -138,19 +140,6 @@ async function fetchFeed($tx: Client) {
     });
     const feed = parser.parse(xml) as ReadingGlassesFeed;
 
-    await $tx.scrapeLog.upsert({
-        create: {
-            url: FEED_URL,
-            lastFetch: new Date(),
-        },
-        where: {
-            url: FEED_URL,
-        },
-        update: {
-            lastFetch: new Date(),
-        }
-    });
-
     const episodesRes = await $tx.episode.findMany({
         select: {
             id: true,
@@ -170,58 +159,56 @@ async function fetchFeed($tx: Client) {
         })),
         skipDuplicates: true,
     });
-    for (const episode of newItems) {
-        await extractBooks($tx, episode);
-    }
+
+    await $tx.scrapeLog.upsert({
+        create: {
+            url: FEED_URL,
+            lastFetch: new Date(),
+        },
+        where: {
+            url: FEED_URL,
+        },
+        update: {
+            lastFetch: new Date(),
+        }
+    });
 }
 
 function generateSlug(title: string): string {
     return title.toLowerCase().replaceAll(/-/gu, ' ').replaceAll(/[^a-z0-9 ]/gu, '').replaceAll(/ +/gu, '-');
 }
 
-type XmlLink = {
-    '#text': string;
-    '@': {
-        href: string;
-    }
-};
-type XmlPA = {
-    a: XmlLink;
-};
-type XmlP = string | XmlPA;
+export async function extractBooks(episode: Episode): Promise<void> {
+    console.log('extracting books from', episode.title);
+    const frag = JSDOM.fragment(episode.description);
 
-const BOOK_LINK_RE = /^https:\/\/bookshop.org\/a\/4926\/[0-9](?<isbn>[0-9]{13})$/u;
-const BOOK_TITLE_AUTHOR_RE = /^(?<title>.*) by (?<author>.*)$/u;
+    const bookshopTags = frag.querySelectorAll('a[href*="https://bookshop.org/a/4926/"]');
+    const indieBoundTags = frag.querySelectorAll('a[href*="https://www.indiebound.org/book/"]');
 
-async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promise<void> {
-    const parser = new XMLParser({
-        allowBooleanAttributes: true,
-        attributesGroupName: '@',
-        attributeNamePrefix: '',
-        ignoreAttributes: false,
-        ignoreDeclaration: true,
-        parseAttributeValue: true,
-        processEntities: true,
-        htmlEntities: true,
-    });
-    const cooked = parser.parse(episode.description);
-    const bookTags = cooked.p.map((p: XmlP) => (p as XmlPA).a).filter((a: XmlLink) => a && a['@'].href.match(BOOK_LINK_RE));
+    for (const bookTag of [...bookshopTags, ...indieBoundTags]) {
+        const bookUrl = new URL(bookTag.getAttribute('href')!);
+        const isbn = path.basename(bookUrl.pathname);
+        let book = await db.book.findFirst({
+            where: {
+                isbn,
+            },
+        });
+        if (!book) {
+            const bookshop = await getBookshopResponse(bookTag.getAttribute('href')!);
+            if (!bookshop) {
+                console.error('failed to get bookshop page:', bookTag.getAttribute('href'));
+                continue;
+            }
 
-    for (const bookTag of bookTags) {
-        let matches: RegExpMatchArray | null = bookTag['#text'].match(BOOK_TITLE_AUTHOR_RE);
-        if (!matches) {
-            console.error('no title/author match for', bookTag['#text']);
-            continue;
+            book = await parseBookshopBookHtml(await bookshop.text());
+
+            if (!book) {
+                console.error('failed to parse bookshop book html');
+                continue;
+            }
         }
-        const isbnMatch: RegExpMatchArray | null = bookTag['@'].href.match(BOOK_LINK_RE);
-        if (!isbnMatch) {
-            console.error('no isbn match for', bookTag['@'].href);
-            continue;
-        }
-        const author = await getOrCreateAuthor($tx, matches.groups!.author);
-        const work = await getOrCreateWork($tx, matches.groups!.title, author);
-        const book = await getOrCreateBook($tx, work, isbnMatch.groups!.isbn);
-        await $tx.episode.update({
+
+        await db.episode.update({
             data: {
                 books: {
                     connect: {
@@ -230,7 +217,7 @@ async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promi
                 },
             },
             where: {
-                id: episode.guid['#text'],
+                id: episode.id,
             },
         });
     }
