@@ -141,7 +141,7 @@ export async function getBookshopResponse(url: string, etag?: string): Promise<R
                 const u = new URL(url);
                 const key = match.groups.key;
                 u.search = key;
-                console.error('key', key);
+                console.error('key', key, u.href);
                 return getBookshopResponse(u.href, etag);
             }
         } else if (response.status === 304) {

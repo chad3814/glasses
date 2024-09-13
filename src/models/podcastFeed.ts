@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { Episode } from '@prisma/client';
 import { JSDOM } from 'jsdom';
 import db, { Client } from './db';
@@ -158,9 +159,6 @@ async function fetchFeed($tx: Client) {
         })),
         skipDuplicates: true,
     });
-    for (const episode of newItems) {
-        await extractBooks($tx, episode);
-    }
 
     await $tx.scrapeLog.upsert({
         create: {
@@ -180,28 +178,37 @@ function generateSlug(title: string): string {
     return title.toLowerCase().replaceAll(/-/gu, ' ').replaceAll(/[^a-z0-9 ]/gu, '').replaceAll(/ +/gu, '-');
 }
 
-async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promise<void> {
-    console.log('extracting books from', episode['itunes:title'], episode.description);
+export async function extractBooks(episode: Episode): Promise<void> {
+    console.log('extracting books from', episode.title);
     const frag = JSDOM.fragment(episode.description);
-    // cooked.p.map((p: XmlP) => (p as XmlPA).a).filter((a: XmlLink) => a && a['@'].href.match(BOOK_LINK_RE));
+
     const bookshopTags = frag.querySelectorAll('a[href*="https://bookshop.org/a/4926/"]');
     const indieBoundTags = frag.querySelectorAll('a[href*="https://www.indiebound.org/book/"]');
-    console.log('bookshop tags:', bookshopTags.length);
-    console.log('indiebound tags', indieBoundTags.length);
+
     for (const bookTag of [...bookshopTags, ...indieBoundTags]) {
-        const bookshop = await getBookshopResponse(bookTag.getAttribute('href')!);
-        if (!bookshop) {
-            console.error('failed to get bookshop page:', bookTag.getAttribute('href'));
-            continue;
-        }
-
-        const book = await parseBookshopBookHtml(await bookshop.text());
+        const bookUrl = new URL(bookTag.getAttribute('href')!);
+        const isbn = path.basename(bookUrl.pathname);
+        let book = await db.book.findFirst({
+            where: {
+                isbn,
+            },
+        });
         if (!book) {
-            console.error('failed to parse bookshop book html');
-            continue;
+            const bookshop = await getBookshopResponse(bookTag.getAttribute('href')!);
+            if (!bookshop) {
+                console.error('failed to get bookshop page:', bookTag.getAttribute('href'));
+                continue;
+            }
+
+            book = await parseBookshopBookHtml(await bookshop.text());
+
+            if (!book) {
+                console.error('failed to parse bookshop book html');
+                continue;
+            }
         }
 
-        await $tx.episode.update({
+        await db.episode.update({
             data: {
                 books: {
                     connect: {
@@ -210,7 +217,7 @@ async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promi
                 },
             },
             where: {
-                id: episode.guid['#text'],
+                id: episode.id,
             },
         });
     }
