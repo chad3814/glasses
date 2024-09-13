@@ -184,8 +184,8 @@ async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promi
     console.log('extracting books from', episode['itunes:title'], episode.description);
     const frag = JSDOM.fragment(episode.description);
     // cooked.p.map((p: XmlP) => (p as XmlPA).a).filter((a: XmlLink) => a && a['@'].href.match(BOOK_LINK_RE));
-    const bookshopTags = frag.querySelectorAll('a[href*="https://bookshop.org/"]');
-    const indieBoundTags = frag.querySelectorAll('a[href*="https://www.indiebound.org/"]');
+    const bookshopTags = frag.querySelectorAll('a[href*="https://bookshop.org/a/4926/"]');
+    const indieBoundTags = frag.querySelectorAll('a[href*="https://www.indiebound.org/book/"]');
     console.log('bookshop tags:', bookshopTags.length);
     console.log('indiebound tags', indieBoundTags.length);
     for (const bookTag of [...bookshopTags, ...indieBoundTags]) {
