@@ -8,7 +8,8 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint",
-    "standalone": "tsc -t es2022 -m nodenext --outDir ./.dist src/standalone/*.ts"
+    "standalone": "tsc -t es2022 -m nodenext --outDir ./.dist src/standalone/*.ts",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build"
   },
   "dependencies": {
     "@prisma/client": "^5.17.0",

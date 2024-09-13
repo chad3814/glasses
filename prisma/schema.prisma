@@ -54,6 +54,7 @@ model Work {
   description String?
   books       Book[]
 
+  @@unique([title, authorId])
   @@index([title])
 }
 
