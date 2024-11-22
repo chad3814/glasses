@@ -1,15 +1,19 @@
 import { Author } from "@prisma/client";
-import { WorkData, workToWorkData } from "./workData";
 import db from "@/models/db";
+import { BookData, bookToBookData } from "./bookData";
 
 export type AuthorData = Author & {
-    works: WorkData[];
+    books: BookData[];
 };
 
 export async function authorToAuthorData(author: Author, $tx = db): Promise<AuthorData> {
-    const works = await $tx.work.findMany({
+    const books = await $tx.book.findMany({
         where: {
-            authorId: author.id,
+            authors: {
+                some: {
+                    id: author.id,
+                },
+            },
         },
     });
 
@@ -17,7 +21,9 @@ export async function authorToAuthorData(author: Author, $tx = db): Promise<Auth
         {},
         author,
         {
-            works: await Promise.all(works.map(work => workToWorkData(work, $tx))),
+            books: await Promise.all(books.map(
+                book => bookToBookData(book, $tx)
+            )),
         },
     );
     return ret;

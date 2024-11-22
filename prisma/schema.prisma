@@ -5,7 +5,8 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
 }
 
 datasource db {
@@ -24,49 +25,57 @@ model Episode {
   @@index([posted])
 }
 
-enum Format {
-  hardcover
-  paperback
-  audio
-  ebook
-}
-
 model Book {
-  id           Int       @id @default(autoincrement())
-  isbn         String
-  format       Format
-  releaseDate  DateTime?
-  pages        Int?
-  imageUrl     String?
-  bookshopUrl  String?
-  overdriveUrl String?
-  libroFmUrl   String?
-  work         Work      @relation(fields: [workId], references: [id])
-  workId       Int
-  episodes     Episode[]
+  id            Int           @id @default(autoincrement())
+  title         String
+  longTitle     String?
+  isbn10        String
+  isbn13        String
+  deweyDecimal  String?
+  binding       String?
+  publisher     String?
+  language      String?
+  datePublished DateTime?
+  edition       String?
+  pages         Int?
+  length        Int?
+  width         Int?
+  height        Int?
+  weight        Int?
+  lengthUnit    String?
+  widthUnit     String?
+  heightUnit    String?
+  weightUnit    String?
+  overview      String?
+  coverImage    String?
+  msrp          Float?
+  excerpt       String?
+  synopsis      String?
+  authors       Author[]
+  subjects      String[]
+  episodes      Episode[]
+  relatedBooksA RelatedBook[] @relation(name: "bookA")
+  relatedBooksB RelatedBook[] @relation(name: "bookB")
+
+  @@unique([isbn10])
+  @@unique([isbn13])
+  @@index([title])
+  @@index([longTitle])
 }
 
-model Work {
-  id          Int     @id @default(autoincrement())
-  title       String
-  author      Author  @relation(fields: [authorId], references: [id])
-  authorId    Int
-  description String?
-  books       Book[]
+model RelatedBook {
+  bookA   Book @relation(name: "bookA", references: [id], fields: [bookIdA])
+  bookIdA Int
+  bookB   Book @relation(name: "bookB", references: [id], fields: [bookIdB])
+  bookIdB Int
 
-  @@unique([title, authorId])
-  @@index([title])
+  @@unique([bookIdA, bookIdB])
 }
 
 model Author {
-  id          Int     @id @default(autoincrement())
-  name        String
-  bookshopUrl String?
-  works       Work[]
-}
+  id    Int    @id @default(autoincrement())
+  name  String
+  books Book[]
 
-model ScrapeLog {
-  url       String   @id
-  lastFetch DateTime @default(now())
-  etag      String?
+  @@unique([name])
 }

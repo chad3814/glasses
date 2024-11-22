@@ -1,4 +1,4 @@
-export function* take<T>(num: number, items: IterableIterator<T>): Generator<T[]> {
+export function* take<T>(num: number, items: Iterable<T>): Generator<T[]> {
     if (num <= 0) {
         throw new Error('Invalid Parameter: num');
     }
@@ -19,7 +19,7 @@ export function* take<T>(num: number, items: IterableIterator<T>): Generator<T[]
 }
 
 export type TakeUntilTestFn<T> = (items: T[]) => boolean;
-export function* takeUntil<T>(testFn: TakeUntilTestFn<T>, items: IterableIterator<T>): Generator<T[]> {
+export function* takeUntil<T>(testFn: TakeUntilTestFn<T>, items: Iterable<T>): Generator<T[]> {
     let ret: T[] = [];
     for (const item of items) {
         ret.push(item);

@@ -1,36 +1,26 @@
 import { Episode } from '@prisma/client';
 import { XMLParser } from 'fast-xml-parser';
 import db, { Client } from './db';
-import { getOrCreateAuthor, getOrCreateBook, getOrCreateWork } from './book';
+import { getOrCreateBookByIsbn } from './book';
 
 const FEED_URL ='https://feeds.simplecast.com/SMcNunjG';
 
 export async function getEpisodes(offset = 0, limit = 100): Promise<Episode[]> {
-    return await db.$transaction(async ($tx) => {
-        const res = await $tx.scrapeLog.findFirst({
-            where: {
-                url: FEED_URL,
-            }
-        });
+    const newItems = await fetchFeed();
 
-        const sixDaysAgo = new Date();
-        sixDaysAgo.setUTCDate(sixDaysAgo.getUTCDate() - 6);
+    const feed = await db.episode.findMany({
+        orderBy: {
+            posted: 'desc'
+        },
+        skip: offset,
+        take: limit,
+    });
 
-        if (!res || res.lastFetch < sixDaysAgo) {
-            // never fetched || maybe out of date
-            await fetchFeed($tx);
-        }
+    for (const episode of newItems) {
+        extractBooks(episode);
+    }
 
-        const feed = await $tx.episode.findMany({
-            orderBy: {
-                posted: 'desc'
-            },
-            skip: offset,
-            take: limit,
-        });
-
-        return feed;
-    })
+    return feed;
 }
 
 type ReadingGlassesFeedItem = {
@@ -118,7 +108,7 @@ type ReadingGlassesFeed = {
     };
 };
 
-async function fetchFeed($tx: Client) {
+async function fetchFeed() {
     const res = await fetch(FEED_URL);
 
     if (!res.ok) {
@@ -138,41 +128,31 @@ async function fetchFeed($tx: Client) {
     });
     const feed = parser.parse(xml) as ReadingGlassesFeed;
 
-    await $tx.scrapeLog.upsert({
-        create: {
-            url: FEED_URL,
-            lastFetch: new Date(),
-        },
-        where: {
-            url: FEED_URL,
-        },
-        update: {
-            lastFetch: new Date(),
-        }
+    const newItems = await db.$transaction(
+        async $tx => {
+        const episodesRes = await $tx.episode.findMany({
+            select: {
+                id: true,
+            }
+        });
+
+        const existingIds = episodesRes.map(r => r.id);
+        const newItems = feed.rss.channel.item.filter(item => !existingIds.includes(item.guid['#text']));
+        console.log('trying to add', newItems.length);
+        await $tx.episode.createMany({
+            data: newItems.map(item => ({
+                id: item.guid['#text'],
+                title: item.title,
+                posted: new Date(item.pubDate),
+                slug: generateSlug(item.title),
+                description: item.description,
+            })),
+            skipDuplicates: true,
+        });
+        return newItems;
     });
 
-    const episodesRes = await $tx.episode.findMany({
-        select: {
-            id: true,
-        }
-    });
-
-    const existingIds = episodesRes.map(r => r.id);
-    const newItems = feed.rss.channel.item.filter(item => !existingIds.includes(item.guid['#text']));
-    console.log('trying to add', newItems.length);
-    await $tx.episode.createMany({
-        data: newItems.map(item => ({
-            id: item.guid['#text'],
-            title: item.title,
-            posted: new Date(item.pubDate),
-            slug: generateSlug(item.title),
-            description: item.description,
-        })),
-        skipDuplicates: true,
-    });
-    for (const episode of newItems) {
-        await extractBooks($tx, episode);
-    }
+    return newItems;
 }
 
 function generateSlug(title: string): string {
@@ -190,10 +170,34 @@ type XmlPA = {
 };
 type XmlP = string | XmlPA;
 
-const BOOK_LINK_RE = /^https:\/\/bookshop.org\/a\/4926\/[0-9](?<isbn>[0-9]{13})$/u;
-const BOOK_TITLE_AUTHOR_RE = /^(?<title>.*) by (?<author>.*)$/u;
+function getAnchorTags(xml: any): XmlLink[] {
+    const anchors: XmlLink[] = [];
+    if (Array.isArray(xml)) {
+        for (const i of xml) {
+            anchors.push(...getAnchorTags(i));
+        }
+        return anchors;
+    }
+    if ('object' === typeof xml) {
+        for (const k of Object.keys(xml)) {
+            if (k === 'a') {
+                if (Array.isArray(xml.a)) {
+                    anchors.push(...xml.a);
+                } else {
+                    anchors.push(xml.a);
+                }
+            } else {
+                anchors.push(...getAnchorTags(xml[k]));
+            }
+        }
+    }
 
-async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promise<void> {
+    return anchors;
+}
+
+const BOOK_LINK_RE = /^https:\/\/((bookshop.org\/a\/4926)|(www.indiebound.org\/book))\/(?<isbn>[0-9]{13})$/u;
+
+async function extractBooks(episode: ReadingGlassesFeedItem): Promise<void> {
     const parser = new XMLParser({
         allowBooleanAttributes: true,
         attributesGroupName: '@',
@@ -205,33 +209,33 @@ async function extractBooks($tx: Client, episode: ReadingGlassesFeedItem): Promi
         htmlEntities: true,
     });
     const cooked = parser.parse(episode.description);
-    const bookTags = cooked.p.map((p: XmlP) => (p as XmlPA).a).filter((a: XmlLink) => a && a['@'].href.match(BOOK_LINK_RE));
-
+    const bookTags = getAnchorTags(cooked);
     for (const bookTag of bookTags) {
-        let matches: RegExpMatchArray | null = bookTag['#text'].match(BOOK_TITLE_AUTHOR_RE);
-        if (!matches) {
-            console.error('no title/author match for', bookTag['#text']);
-            continue;
-        }
         const isbnMatch: RegExpMatchArray | null = bookTag['@'].href.match(BOOK_LINK_RE);
         if (!isbnMatch) {
             console.error('no isbn match for', bookTag['@'].href);
             continue;
         }
-        const author = await getOrCreateAuthor($tx, matches.groups!.author);
-        const work = await getOrCreateWork($tx, matches.groups!.title, author);
-        const book = await getOrCreateBook($tx, work, isbnMatch.groups!.isbn);
-        await $tx.episode.update({
-            data: {
-                books: {
-                    connect: {
-                        id: book.id,
+
+        await db.$transaction(
+            async $tx => {
+                const book = await getOrCreateBookByIsbn(isbnMatch.groups!.isbn, $tx);
+                if (!book) {
+                    return;
+                }
+                await $tx.episode.update({
+                    data: {
+                        books: {
+                            connect: {
+                                id: book.id,
+                            },
+                        },
                     },
-                },
-            },
-            where: {
-                id: episode.guid['#text'],
-            },
-        });
+                    where: {
+                        id: episode.guid['#text'],
+                    },
+                });
+            }
+        );
     }
 }

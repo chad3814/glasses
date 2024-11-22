@@ -1,21 +1,41 @@
 import { Book } from "@prisma/client";
-import { EpisodeData, episodeToEpisodeData } from "./episodeData";
-import { WorkData, workToWorkData } from "./workData";
-import db from "@/models/db";
+import db, { Client } from "@/models/db";
 
-export type BookData = Omit<Book, 'workId'> & {
-    work: WorkData;
-    episodeIds: string[];
+type RelatedBook = {
+    id: number;
+    binding: string | null;
 };
 
-export async function bookToBookData(book: Book, $tx = db): Promise<BookData> {
-    const [work, episodeIds] = await Promise.all([
-        $tx.work.findFirst({
-            where: {
-                id: book.workId,
+export type AuthorData = {
+    id: number;
+    name: string;
+    books: BookData[];
+}
+export type BookAuthor = Omit<AuthorData, 'books'>;
+
+export type BookData = Omit<Book, 'datePublished'> & {
+    authors: BookAuthor[];
+    datePublished?: number | Date;
+    episodeIds: string[];
+    relatedBooks: RelatedBook[];
+};
+
+export async function bookToBookData(book: Book, $tx: Client = db): Promise<BookData> {
+    const [authors, episodeIds, related] = await Promise.all([
+        await $tx.author.findMany({
+            select: {
+                id: true,
+                name: true,
             },
+            where: {
+                books: {
+                    some: {
+                        id: book.id,
+                    }
+                }
+            }
         }),
-        $tx.episode.findMany({
+        await $tx.episode.findMany({
             select: {
                 id: true,
             },
@@ -27,17 +47,56 @@ export async function bookToBookData(book: Book, $tx = db): Promise<BookData> {
                 },
             },
         }),
+        await $tx.relatedBook.findMany({
+            include: {
+                bookA: {
+                    select: {
+                        id: true,
+                        binding: true,
+                    },
+                },
+                bookB: {
+                    select: {
+                        id: true,
+                        binding: true,
+                    },
+                },
+            },
+            where: {
+                OR: [{
+                    bookIdA: book.id,
+                },
+                {
+                    bookIdB: book.id,
+                }],
+            },
+        }),
     ]);
-    if (!work) {
-        throw new Error('No work for book');
+
+    const map = new Map<number, RelatedBook>();
+    for (const rel of related) {
+        if (rel.bookA.id === book.id) {
+            map.set(rel.bookB.id, rel.bookB);
+        } else {
+            map.set(rel.bookA.id, rel.bookA);
+        }
     }
     const ret: BookData = Object.assign(
         {},
         book,
         {
-            work: await workToWorkData(work),
+            authors,
+            datePublished: book.datePublished?.getTime(),
             episodeIds: episodeIds.map(episode => episode.id),
+            relatedBooks: [...map.values()],
         },
     );
     return ret;
+}
+
+export function bookDataToBookData(bookData: BookData): BookData {
+    if (bookData.datePublished == null) {
+        return bookData;
+    }
+    return {...bookData, datePublished: new Date(bookData.datePublished)};
 }

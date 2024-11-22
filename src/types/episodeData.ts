@@ -1,9 +1,9 @@
 import { Episode } from "@prisma/client";
-import { BookData, bookToBookData } from "./bookData";
+import { BookData, bookDataToBookData, bookToBookData } from "./bookData";
 import db from "@/models/db";
 
 export type EpisodeData = Omit<Episode, 'posted'> & {
-    posted: number;
+    posted: number | Date;
     books: BookData[];
 };
 
@@ -29,7 +29,12 @@ export async function episodeToEpisodeData(episode: Episode, $tx = db): Promise<
     return ret;
 }
 
-export function episodeDataToEpisode(episodeData: EpisodeData): Episode {
-    const ret = Object.assign({}, episodeData, {posted: new Date(episodeData.posted)});
+export function episodeDataToEpisodeData(episodeData: EpisodeData): EpisodeData {
+    const ret = Object.assign({}, episodeData, {
+        posted: new Date(episodeData.posted),
+        books: episodeData.books.map(
+            book => bookDataToBookData(book)
+        ),
+    });
     return ret;
 }

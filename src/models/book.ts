@@ -1,64 +1,23 @@
-import { Author, Format, Work } from '@prisma/client';
-import { Client } from './db';
+import { Book } from '@prisma/client';
+import db, { Client } from './db';
+import { importBookByIsbn13 } from './isbndb';
 
-export async function getOrCreateAuthor($tx: Client, name: string, bsAuthorUrl?: string) {
-    let author = await $tx.author.findFirst({
+export async function getBookByIsbn(isbn: string, $tx?: Client): Promise<Book | null> {
+    $tx = $tx ?? db;
+    return await $tx.book.findFirst({
         where: {
-            name,
-            bookshopUrl: bsAuthorUrl
-        },
+            isbn13: isbn
+        }
     });
-
-    if (author) {
-        return author;
-    }
-
-    author = await $tx.author.create({
-        data: {
-            name,
-        },
-    });
-    return author;
 }
 
-export async function getOrCreateWork($tx: Client, title: string, author: Author) {
-    let work = await $tx.work.findFirst({
-        where: {
-            title,
-            authorId: author.id,
-        },
-    });
-
-    if (work) {
-        return work;
-    }
-
-    work = await $tx.work.create({
-        data: {
-            title,
-            authorId: author.id,
-        },
-    });
-    return work;
-}
-
-export async function getOrCreateBook($tx: Client, work: Work, isbn: string, format: Format = Format.hardcover) {
-    let book = await $tx.book.findFirst({
-        where: {
-            isbn,
-        },
-    });
+export async function getOrCreateBookByIsbn(isbn: string, $tx?: Client): Promise<Book | null> {
+    console.log('getOrCreateBookByIsbn:', isbn);
+    const book = await getBookByIsbn(isbn, $tx);
 
     if (book) {
         return book;
     }
 
-    book = await $tx.book.create({
-        data: {
-            isbn,
-            workId: work.id,
-            format,
-        },
-    });
-    return book;
+    return await importBookByIsbn13(isbn, $tx);
 }

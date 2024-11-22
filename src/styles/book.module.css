@@ -17,3 +17,34 @@
     background-color: beige;
     border: 1px dashed black;
 }
+
+.localBook {
+    display: flex;
+    flex-direction: row;
+    height: min-content;
+    gap: 5px;
+    border: 1px solid;
+    margin: 0;
+    padding: 3px;
+}
+
+.cover {
+    height: 100%;
+    width: calc(6/9*height);
+    flex-grow: 0;
+}
+
+.info {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    text-overflow: ellipsis;
+}
+
+.searchResults {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: min-content;
+    max-width: 20em;
+}
