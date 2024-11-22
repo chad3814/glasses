@@ -3,10 +3,10 @@ import db, { Client } from './db';
 import { Book, Prisma } from '@prisma/client';
 import { queue } from 'async';
 import { sleep } from '@/utils/sleep';
-import { pages } from 'next/dist/build/templates/app-page';
 import { take } from '@/utils/take';
+import { getOrCreateBooksByIsbnBooks } from './book';
 
-type IsbnDbBook = {
+export type IsbnDbBook = {
     title: string;
     title_long: string;
     isbn: string;
@@ -56,7 +56,7 @@ type IsbnDbBookData = {
     book: IsbnDbBook;
 };
 
-function isbnDataToCreateInput(book: IsbnDbBook): Prisma.BookCreateInput {
+export function isbnDataToCreateInput(book: IsbnDbBook): Prisma.BookCreateInput {
     const input: Prisma.BookCreateInput = {
         title: book.title,
         longTitle: book.title_long,
@@ -156,7 +156,7 @@ export async function importBookByIsbn13(isbn: string, $tx?: Client): Promise<Bo
     return await addIsbnBook(isbnData.book, $tx ?? db);
 }
 
-async function addIsbnBook(isbnBook: IsbnDbBook, $tx: Client) {
+export async function addIsbnBook(isbnBook: IsbnDbBook, $tx: Client) {
     const data: Prisma.BookCreateInput = isbnDataToCreateInput(isbnBook);
     const book = await $tx.book.create({
         data,
@@ -240,4 +240,13 @@ export async function importBooksByDate(date: string): Promise<number[]> {
 
     console.log(date, '-', bookIds.length, 'books');
     return bookIds;
+}
+
+export async function search(query: string): Promise<Book[] | null> {
+    const url = `https://api2.isbndb.com/books/${query}?page=1&pageSize=${20}&column=title&shouldMatchAll=0`;
+    const results = await q.push(url) as IsbnSearchResult;
+
+    const books = await getOrCreateBooksByIsbnBooks(results?.books ?? []);
+
+    return books;
 }

@@ -1,6 +1,6 @@
 import { Book } from '@prisma/client';
 import db, { Client } from './db';
-import { importBookByIsbn13 } from './isbndb';
+import { addIsbnBook, importBookByIsbn13, IsbnDbBook } from './isbndb';
 
 export async function getBookByIsbn(isbn: string, $tx?: Client): Promise<Book | null> {
     $tx = $tx ?? db;
@@ -20,4 +20,33 @@ export async function getOrCreateBookByIsbn(isbn: string, $tx?: Client): Promise
     }
 
     return await importBookByIsbn13(isbn, $tx);
+}
+
+export async function getOrCreateBooksByIsbnBooks(isbnBooks: IsbnDbBook[], $tx?: Client): Promise<Book[] | null> {
+    $tx = $tx ?? db;
+
+    const books = await $tx.book.findMany({
+        where: {
+            isbn13: {
+                in: isbnBooks.map(
+                    isbnBook => isbnBook.isbn13
+                ),
+            },
+        },
+    });
+
+    const existingIsbns = books.map(
+        book => book.isbn13
+    );
+
+    const needed = isbnBooks.filter(
+        isbnBook => !existingIsbns.includes(isbnBook.isbn13)
+    );
+
+    for (const isbnBook of needed) {
+        const book = await addIsbnBook(isbnBook, $tx);
+        books.push(book);
+    }
+
+    return books;
 }

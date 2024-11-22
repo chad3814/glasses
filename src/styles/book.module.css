@@ -26,6 +26,7 @@
     border: 1px solid;
     margin: 0;
     padding: 3px;
+    background-color: blanchedalmond;
 }
 
 .cover {
@@ -46,5 +47,32 @@
     flex-direction: column;
     gap: 2px;
     min-width: min-content;
-    max-width: 20em;
+}
+
+.title {
+    text-overflow: ellipsis;
+}
+
+.disabled {
+    background-color: white;
+}
+
+.clickable {
+    cursor: pointer;
+}
+
+.searchPage {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+
+.input {
+    flex-grow: 0;
+    max-width: 30em;
+}
+
+.selected {
+    flex-grow: 0;
+    max-width: 30em;
 }

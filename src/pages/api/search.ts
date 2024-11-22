@@ -32,6 +32,9 @@ export default async function search(req: NextApiRequest, res: NextApiResponse<B
         where: {
             OR,
         },
+        orderBy: {
+            datePublished: 'desc',
+        },
         take: 10,
     });
 

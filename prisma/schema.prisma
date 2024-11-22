@@ -59,6 +59,8 @@ model Book {
 
   @@unique([isbn10])
   @@unique([isbn13])
+  @@index([title, datePublished])
+  @@index([longTitle, datePublished])
   @@index([title])
   @@index([longTitle])
 }
