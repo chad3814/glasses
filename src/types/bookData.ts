@@ -22,18 +22,18 @@ export type BookData = Omit<Book, 'datePublished'> & {
 
 export async function bookToBookData(book: Book, $tx: Client = db): Promise<BookData> {
     const [authors, episodeIds, related] = await Promise.all([
-        await $tx.author.findMany({
-            select: {
-                id: true,
-                name: true,
+        await $tx.authorBook.findMany({
+            include: {
+                author: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
             },
             where: {
-                books: {
-                    some: {
-                        id: book.id,
-                    }
-                }
-            }
+                bookId: book.id,
+            },
         }),
         await $tx.episode.findMany({
             select: {
@@ -85,7 +85,9 @@ export async function bookToBookData(book: Book, $tx: Client = db): Promise<Book
         {},
         book,
         {
-            authors,
+            authors: authors.map(
+                ({author}) => author
+            ),
             datePublished: book.datePublished?.getTime(),
             episodeIds: episodeIds.map(episode => episode.id),
             relatedBooks: [...map.values()],

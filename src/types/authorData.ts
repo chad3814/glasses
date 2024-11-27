@@ -11,7 +11,7 @@ export async function authorToAuthorData(author: Author, $tx = db): Promise<Auth
         where: {
             authors: {
                 some: {
-                    id: author.id,
+                    authorId: author.id,
                 },
             },
         },

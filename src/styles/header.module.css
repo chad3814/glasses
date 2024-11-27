@@ -1,0 +1,17 @@
+.bar {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 5px;
+    align-items: center;
+    border-bottom: 1px solid blanchedalmond;
+    margin-bottom: 15px;
+    color: blanchedalmond;
+    font-size: 36px;
+}
+
+.right {
+    flex-grow: 1;
+    text-align: right;
+    font-size: 18px;
+}

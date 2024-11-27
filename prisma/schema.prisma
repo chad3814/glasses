@@ -51,11 +51,13 @@ model Book {
   msrp          Float?
   excerpt       String?
   synopsis      String?
-  authors       Author[]
   subjects      String[]
+  authors       AuthorBook[]
   episodes      Episode[]
   relatedBooksA RelatedBook[] @relation(name: "bookA")
   relatedBooksB RelatedBook[] @relation(name: "bookB")
+  wordSearch    WordSearch[]
+  ballots       Ballot[]
 
   @@unique([isbn10])
   @@unique([isbn13])
@@ -63,6 +65,15 @@ model Book {
   @@index([longTitle, datePublished])
   @@index([title])
   @@index([longTitle])
+}
+
+model AuthorBook {
+  book Book @relation(references: [id], fields: [bookId])
+  bookId Int
+  author Author @relation(references: [id], fields: [authorId])
+  authorId Int
+
+  @@unique([bookId, authorId])
 }
 
 model RelatedBook {
@@ -77,7 +88,44 @@ model RelatedBook {
 model Author {
   id    Int    @id @default(autoincrement())
   name  String
-  books Book[]
-
+  books AuthorBook[]
   @@unique([name])
+}
+
+model WordSearch {
+  word   String
+  book   Book   @relation(references: [id], fields: [bookId])
+  bookId Int
+  score  Int
+
+  @@id([word, bookId])
+}
+
+enum Providers {
+  Apple
+  Google
+}
+
+model User {
+  id Int @id @default(autoincrement())
+  provider Providers
+  token String
+  votes Ballot[]
+}
+
+model Vote {
+  id Int @id @default(autoincrement())
+  name String
+  startTime DateTime
+  endTime DateTime
+  ballots Ballot[]
+}
+model Ballot {
+  id Int @id @default(autoincrement())
+  vote Vote @relation(references: [id], fields: [voteId])
+  voteId Int
+  user User @relation(references: [id], fields: [userId])
+  userId Int
+  book Book @relation(references: [id], fields: [bookId])
+  bookId Int
 }

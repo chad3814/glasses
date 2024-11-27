@@ -5,6 +5,7 @@ import { queue } from 'async';
 import { sleep } from '@/utils/sleep';
 import { take } from '@/utils/take';
 import { getOrCreateBooksByIsbnBooks } from './book';
+import { tokenize } from '@/utils/tokenize';
 
 export type IsbnDbBook = {
     title: string;
@@ -158,6 +159,28 @@ export async function importBookByIsbn13(isbn: string, $tx?: Client): Promise<Bo
 
 export async function addIsbnBook(isbnBook: IsbnDbBook, $tx: Client) {
     const data: Prisma.BookCreateInput = isbnDataToCreateInput(isbnBook);
+    const wordScores: { word: string; score: number; }[] = [];
+    const titleTokens = new Set<string>(tokenize(`${isbnBook.title} ${isbnBook.title_long ?? ''}`));
+    const authorTokens = new Set<string>(tokenize(isbnBook.authors?.join(' ') ?? ''));
+    for (const word of titleTokens.values()) {
+        wordScores.push({word, score: 10});
+    }
+    for (const word of authorTokens.values()) {
+        wordScores.push({word, score: 5});
+    }
+    if (isbnBook.overview) {
+        const wordTokens = tokenize(isbnBook.overview);
+        for (const word of wordTokens) {
+            wordScores.push({word, score: 1});
+        }
+    }
+    data.wordSearch = {
+        createMany: {
+            data: wordScores,
+            skipDuplicates: true,
+        }
+    }
+
     const book = await $tx.book.create({
         data,
     });
@@ -166,28 +189,51 @@ export async function addIsbnBook(isbnBook: IsbnDbBook, $tx: Client) {
         throw new Error('Failed to save book');
     }
 
-    for (const name of isbnBook.authors ?? []) {
-        await $tx.author.upsert({
-            where: {
-                name,
-            },
-            update: {
-                books: {
-                    connect: {
-                        id: book.id
-                    }
-                },
-            },
-            create: {
-                name,
-                books: {
-                    connect: {
-                        id: book.id,
-                    },
-                },
-            },
+    if (isbnBook.authors) {
+        const authors = await $tx.author.createManyAndReturn({
+            data: isbnBook.authors.map(
+                name => ({ name })
+            ),
+            skipDuplicates: true,
+        });
+
+        await $tx.authorBook.createMany({
+            data: authors.map(
+                ({id: authorId}) => ({
+                    authorId,
+                    bookId: book.id
+                })
+            ),
         });
     }
+    // const titleTokens = new Set<string>(tokenize(`${book.title} ${book.longTitle ?? ''}`));
+    // const nameTokens = new Set<string>(tokenize(isbnBook.authors?.join(' ') ?? ''));
+    // const wordSearchPromises = [
+    //     $tx.wordSearch.createMany({
+    //         data: [...titleTokens.values()].map(
+    //             word => ({word, bookId: book.id, score: 5})
+    //         ),
+    //         skipDuplicates: true,
+    //     }),
+    //     $tx.wordSearch.createMany({
+    //         data: [...nameTokens.values()].map(
+    //             word => ({word, bookId: book.id, score: 5})
+    //         ),
+    //         skipDuplicates: true,
+    //     }),
+    // ];
+    // if (data.overview) {
+    //     wordSearchPromises.push(
+    //         $tx.wordSearch.createMany({
+    //             data: tokenize(data.overview).map(
+    //                 word => ({word, bookId: book.id, score: 1}),
+    //             ),
+    //             skipDuplicates: true,
+    //         }),
+    //     );
+    // }
+
+    // await Promise.all(wordSearchPromises);
 
     return book;
 }
@@ -228,11 +274,97 @@ export async function importBooksByDate(date: string): Promise<number[]> {
                     const ids = await $tx.book.createManyAndReturn({
                         select: {
                             id: true,
+                            isbn13: true,
                         },
                         data,
                         skipDuplicates: true,
                     });
                     bookIds.push(...(ids.map(i => i.id)));
+
+                    const authors = await $tx.author.createManyAndReturn({
+                        data: books.map(
+                            isbnBook => {
+                                if (!isbnBook.authors) {
+                                    return undefined;
+                                }
+                                return isbnBook.authors.map(
+                                    name => ({
+                                        name,
+                                    })
+                                );
+                            },
+                        ).filter(d => !!d).flat(),
+                        skipDuplicates: true,
+                    });
+
+                    await $tx.authorBook.createMany({
+                        data: books.map(
+                            isbnBook => {
+                                const bookId = ids.find(
+                                    ({isbn13}) => isbn13 === isbnBook.isbn13
+                                )?.id;
+                                if(!bookId) {
+                                    return undefined;
+                                }
+
+                                const authorIds = authors.filter(
+                                    ({name}) => isbnBook.authors?.includes(name)
+                                ).map(i => i.id);
+
+                                return authorIds.map(
+                                    authorId => ({
+                                        bookId,
+                                        authorId
+                                    })
+                                );
+                            }
+                        ).filter(d => !!d).flat()
+                    });
+
+                    await $tx.wordSearch.createMany({
+                        data: ids.map(
+                            ({id: bookId, isbn13}) => {
+                                const isbnBook = books.find(
+                                    book => book.isbn13 === isbn13
+                                );
+                                if (!isbnBook) {
+                                    return undefined;
+                                }
+                                const wordScore: {word: string; score: number; bookId: number;}[] = []
+                                for (const word of tokenize(`${isbnBook.title} ${isbnBook.title_long}`)) {
+                                    wordScore.push({
+                                        word,
+                                        score: 10,
+                                        bookId,
+                                    });
+                                }
+
+                                if (isbnBook.authors) {
+                                    const names = tokenize(isbnBook.authors.join(' '));
+                                    for (const word of names) {
+                                        wordScore.push({
+                                            word,
+                                            score: 5,
+                                            bookId,
+                                        });
+                                    }
+                                }
+
+                                if (isbnBook.overview) {
+                                    for (const word of tokenize(`${isbnBook.overview}`)) {
+                                        wordScore.push({
+                                            word,
+                                            score: 1,
+                                            bookId,
+                                        });
+                                    }
+                                }
+
+                                return wordScore;
+                            }
+                        ).filter(d => !!d).flat(),
+                        skipDuplicates: true,
+                    });
                 }
             );
         }

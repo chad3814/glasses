@@ -8,9 +8,10 @@ type Props = {
     disabled?: boolean;
     onClick?: (bookId: number) => void;
     title?: string;
+    score?: number;
 };
 
-export default function LocalBook({ book, disabled, minimal, onClick, title }: Props) {
+export default function LocalBook({ book, disabled, minimal, onClick, title, score }: Props) {
     const authors = book.authors.map(
         (author, idx) => <span key={author.id}>{author.name}{idx < (book.authors.length - 1) ? ', ' : ''}</span>
     );
@@ -25,6 +26,7 @@ export default function LocalBook({ book, disabled, minimal, onClick, title }: P
                     <h1 className={styles.title}>{book.longTitle ?? book.title}</h1>
                     <h4>by {authors}</h4>
                     <div className={styles.overview}>{book.overview}</div>
+                    {score && <div>score: {score}</div>}
                 </>
             }
         </div>
